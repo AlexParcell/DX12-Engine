@@ -12,21 +12,8 @@ D3DHandler::~D3DHandler()
 {
 }
 
-bool D3DHandler::Initialise(int screenHeight, int screenWidth, HWND hwnd, bool vsync, bool fullscreen)
+bool D3DHandler::InitialiseCommandQueue()
 {
-	m_vsyncEnabled = vsync;
-
-	// Some cards may not support this and need to be reduced to 12.0, this is 12.1
-	D3D_FEATURE_LEVEL featureLevel = D3D_FEATURE_LEVEL_12_1;
-
-	HRESULT result = D3D12CreateDevice(NULL, featureLevel, __uuidof(ID3D12Device), (void**)&m_device);
-
-	if (FAILED(result))
-	{
-		MessageBox(hwnd, L"Could not create a DirectX 12.1 device.  The default video card does not support DirectX 12.1.", L"DirectX Device Failure", MB_OK);
-		return false;
-	}
-
 	// Initialize the description of the command queue.
 	D3D12_COMMAND_QUEUE_DESC commandQueueDesc;
 	ZeroMemory(&commandQueueDesc, sizeof(commandQueueDesc));
@@ -38,79 +25,18 @@ bool D3DHandler::Initialise(int screenHeight, int screenWidth, HWND hwnd, bool v
 	commandQueueDesc.NodeMask = 0;
 
 	// Create the command queue.
-	result = m_device->CreateCommandQueue(&commandQueueDesc, __uuidof(ID3D12CommandQueue), (void**)&m_commandQueue);
+	HRESULT result = m_device->CreateCommandQueue(&commandQueueDesc, __uuidof(ID3D12CommandQueue), (void**)&m_commandQueue);
 	if (FAILED(result)) return false;
 
+	return true;
+}
+
+bool D3DHandler::InitialiseSwapChain(int screenHeight, int screenWidth, HWND hwnd, bool fullscreen, int numerator, int denominator)
+{
 	// Create a DirectX graphics interface factory.
 	IDXGIFactory4* factory;
-	result = CreateDXGIFactory1(__uuidof(IDXGIFactory4), (void**)&factory);
+	HRESULT result = CreateDXGIFactory1(__uuidof(IDXGIFactory4), (void**)&factory);
 	if (FAILED(result)) return false;
-
-	// Use the factory to create an adapter for the primary graphics interface (video card).
-	IDXGIAdapter* adapter;
-	IDXGIOutput* adapterOutput;
-
-	result = factory->EnumAdapters(0, &adapter);
-	if (FAILED(result)) return false;
-
-	// Enumerate the primary adapter output (monitor).
-	result = adapter->EnumOutputs(0, &adapterOutput);
-	if (FAILED(result)) return false;
-
-	// Get the number of modes that fit the DXGI_FORMAT_R8G8B8A8_UNORM display format for the adapter output (monitor).
-	unsigned int numModes;
-	result = adapterOutput->GetDisplayModeList(DXGI_FORMAT_R8G8B8A8_UNORM, DXGI_ENUM_MODES_INTERLACED, &numModes, NULL);
-	if (FAILED(result)) return false;
-
-	// Create a list to hold all the possible display modes for this monitor/video card combination.
-	DXGI_MODE_DESC* displayModeList = new DXGI_MODE_DESC[numModes];
-	if (!displayModeList) return false;
-
-	// Now fill the display mode list structures.
-	result = adapterOutput->GetDisplayModeList(DXGI_FORMAT_R8G8B8A8_UNORM, DXGI_ENUM_MODES_INTERLACED, &numModes, displayModeList);
-	if (FAILED(result)) return false;
-
-	// Now go through all the display modes and find the one that matches the screen height and width.
-	// When a match is found store the numerator and denominator of the refresh rate for that monitor.
-	unsigned int numerator = 0;
-	unsigned int denominator = 0;
-	for (unsigned int i = 0; i < numModes; i++)
-	{
-		DXGI_MODE_DESC* currentMode = displayModeList + i;
-		if (currentMode->Height == (unsigned int)screenHeight)
-		{
-			if (currentMode->Width == (unsigned int)screenWidth)
-			{
-				numerator = currentMode->RefreshRate.Numerator;
-				denominator = currentMode->RefreshRate.Denominator;
-			}
-		}
-	}
-
-	// Get the adapter (video card) description.
-	DXGI_ADAPTER_DESC adapterDesc;
-	result = adapter->GetDesc(&adapterDesc);
-	if (FAILED(result)) return false;
-
-	// Store the dedicated video card memory in megabytes.
-	m_videoCardMemory = (int)(adapterDesc.DedicatedVideoMemory / 1024 / 1024);
-
-	// Convert the name of the video card to a character array and store it.
-	unsigned long long stringLength;
-	int error = wcstombs_s(&stringLength, m_videoCardDesc, 128, adapterDesc.Description, 128);
-	if (error != 0) return false;
-
-	// Release the display mode list.
-	delete[] displayModeList;
-	displayModeList = nullptr;
-
-	// Release the adapter output.
-	adapterOutput->Release();
-	adapterOutput = nullptr;
-
-	// Release the adapter.
-	adapter->Release();
-	adapter = nullptr;
 
 	// Initialize the swap chain description.
 	DXGI_SWAP_CHAIN_DESC swapChainDesc;
@@ -170,6 +96,89 @@ bool D3DHandler::Initialise(int screenHeight, int screenWidth, HWND hwnd, bool v
 	factory->Release();
 	factory = nullptr;
 
+	return true;
+}
+
+bool D3DHandler::InitialiseDisplayAdapter(int screenHeight, int screenWidth, HWND hwnd, bool vsync, bool fullscreen, unsigned int& numerator, unsigned int& denominator)
+{
+	// Create a DirectX graphics interface factory.
+	IDXGIFactory4* factory;
+	HRESULT result = CreateDXGIFactory1(__uuidof(IDXGIFactory4), (void**)&factory);
+	if (FAILED(result)) return false;
+
+	// Use the factory to create an adapter for the primary graphics interface (video card).
+	IDXGIAdapter* adapter;
+	IDXGIOutput* adapterOutput;
+
+	result = factory->EnumAdapters(0, &adapter);
+	if (FAILED(result)) return false;
+
+	// Enumerate the primary adapter output (monitor).
+	result = adapter->EnumOutputs(0, &adapterOutput);
+	if (FAILED(result)) return false;
+
+	// Get the number of modes that fit the DXGI_FORMAT_R8G8B8A8_UNORM display format for the adapter output (monitor).
+	unsigned int numModes;
+	result = adapterOutput->GetDisplayModeList(DXGI_FORMAT_R8G8B8A8_UNORM, DXGI_ENUM_MODES_INTERLACED, &numModes, NULL);
+	if (FAILED(result)) return false;
+
+	// Create a list to hold all the possible display modes for this monitor/video card combination.
+	DXGI_MODE_DESC* displayModeList = new DXGI_MODE_DESC[numModes];
+	if (!displayModeList) return false;
+
+	// Now fill the display mode list structures.
+	result = adapterOutput->GetDisplayModeList(DXGI_FORMAT_R8G8B8A8_UNORM, DXGI_ENUM_MODES_INTERLACED, &numModes, displayModeList);
+	if (FAILED(result)) return false;
+
+	// Now go through all the display modes and find the one that matches the screen height and width.
+	// When a match is found store the numerator and denominator of the refresh rate for that monitor.
+	for (unsigned int i = 0; i < numModes; i++)
+	{
+		DXGI_MODE_DESC* currentMode = displayModeList + i;
+		if (currentMode->Height == (unsigned int)screenHeight)
+		{
+			if (currentMode->Width == (unsigned int)screenWidth)
+			{
+				numerator = currentMode->RefreshRate.Numerator;
+				denominator = currentMode->RefreshRate.Denominator;
+			}
+		}
+	}
+
+	// Get the adapter (video card) description.
+	DXGI_ADAPTER_DESC adapterDesc;
+	result = adapter->GetDesc(&adapterDesc);
+	if (FAILED(result)) return false;
+
+	// Store the dedicated video card memory in megabytes.
+	m_videoCardMemory = (int)(adapterDesc.DedicatedVideoMemory / 1024 / 1024);
+
+	// Convert the name of the video card to a character array and store it.
+	unsigned long long stringLength;
+	int error = wcstombs_s(&stringLength, m_videoCardDesc, 128, adapterDesc.Description, 128);
+	if (error != 0) return false;
+
+	// Release the display mode list.
+	delete[] displayModeList;
+	displayModeList = nullptr;
+
+	// Release the adapter output.
+	adapterOutput->Release();
+	adapterOutput = nullptr;
+
+	// Release the adapter.
+	adapter->Release();
+	adapter = nullptr;
+
+	// Release the factory now that the swap chain has been created.
+	factory->Release();
+	factory = nullptr;
+
+	return true;
+}
+
+bool D3DHandler::InitialiseRenderTargets()
+{
 	// Initialize the render target view heap description for the two back buffers.
 	D3D12_DESCRIPTOR_HEAP_DESC renderTargetViewHeapDesc;
 	ZeroMemory(&renderTargetViewHeapDesc, sizeof(renderTargetViewHeapDesc));
@@ -180,11 +189,8 @@ bool D3DHandler::Initialise(int screenHeight, int screenWidth, HWND hwnd, bool v
 	renderTargetViewHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 
 	// Create the render target view heap for the back buffers.
-	result = m_device->CreateDescriptorHeap(&renderTargetViewHeapDesc, __uuidof(ID3D12DescriptorHeap), (void**)&m_renderTargetViewHeap);
-	if (FAILED(result))
-	{
-		return false;
-	}
+	HRESULT result = m_device->CreateDescriptorHeap(&renderTargetViewHeapDesc, __uuidof(ID3D12DescriptorHeap), (void**)&m_renderTargetViewHeap);
+	if (FAILED(result)) return false;
 
 	// Get a handle to the starting memory location in the render target view heap to identify where the render target views will be located for the two back buffers.
 	D3D12_CPU_DESCRIPTOR_HANDLE renderTargetViewHandle = m_renderTargetViewHeap->GetCPUDescriptorHandleForHeapStart();
@@ -195,10 +201,7 @@ bool D3DHandler::Initialise(int screenHeight, int screenWidth, HWND hwnd, bool v
 
 	// Get a pointer to the first back buffer from the swap chain.
 	result = m_swapChain->GetBuffer(0, __uuidof(ID3D12Resource), (void**)&m_backBufferRenderTarget[0]);
-	if (FAILED(result))
-	{
-		return false;
-	}
+	if (FAILED(result)) return false;
 
 	// Create a render target view for the first back buffer.
 	m_device->CreateRenderTargetView(m_backBufferRenderTarget[0], NULL, renderTargetViewHandle);
@@ -215,6 +218,30 @@ bool D3DHandler::Initialise(int screenHeight, int screenWidth, HWND hwnd, bool v
 
 	// Finally get the initial index to which buffer is the current back buffer.
 	m_bufferIndex = m_swapChain->GetCurrentBackBufferIndex();
+
+	return true;
+}
+
+bool D3DHandler::Initialise(int screenHeight, int screenWidth, HWND hwnd, bool vsync, bool fullscreen)
+{
+	m_vsyncEnabled = vsync;
+
+	// Some cards may not support this and need to be reduced to 12.0, this is 12.1
+	D3D_FEATURE_LEVEL featureLevel = D3D_FEATURE_LEVEL_12_1;
+
+	HRESULT result = D3D12CreateDevice(NULL, featureLevel, __uuidof(ID3D12Device), (void**)&m_device);
+
+	if (FAILED(result))
+	{
+		MessageBox(hwnd, L"Could not create a DirectX 12.1 device.  The default video card does not support DirectX 12.1.", L"DirectX Device Failure", MB_OK);
+		return false;
+	}
+
+	if (!InitialiseCommandQueue()) return false;
+	unsigned int numerator, denominator;
+	if (!InitialiseDisplayAdapter(screenHeight, screenWidth, hwnd, vsync, fullscreen, numerator, denominator)) return false;
+	if (!InitialiseSwapChain(screenHeight, screenWidth, hwnd, fullscreen, numerator, denominator)) return false;
+	if (!InitialiseRenderTargets()) return false;
 
 	// Create a command allocator.
 	result = m_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, __uuidof(ID3D12CommandAllocator), (void**)&m_commandAllocator);

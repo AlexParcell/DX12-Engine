@@ -11,8 +11,13 @@ public:
 
 	bool Initialise(int screenHeight, int screenWidth, HWND hwnd, bool vsync, bool fullscreen);
 	void Shutdown();
-
 	bool Render();
+
+private:
+	bool InitialiseCommandQueue();
+	bool InitialiseSwapChain(int screenHeight, int screenWidth, HWND hwnd, bool fullscreen, int numerator, int denominator);
+	bool InitialiseDisplayAdapter(int screenHeight, int screenWidth, HWND hwnd, bool vsync, bool fullscreen, unsigned int& numerator, unsigned int& denominator);
+	bool InitialiseRenderTargets();
 
 private:
 	bool m_vsyncEnabled;
