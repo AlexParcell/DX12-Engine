@@ -3,9 +3,12 @@
 #include "GraphicsHandler.h"
 #include "InputHandler.h"
 
+#include <stdexcept>
+
 Application::Application()
 	: m_inputHandler(nullptr),
-	m_graphicsHandler(nullptr)
+	m_graphicsHandler(nullptr),
+	m_exit(false)
 {
 }
 
@@ -17,7 +20,7 @@ Application::~Application()
 {
 }
 
-bool Application::Initialize()
+void Application::Initialize()
 {
 	int screenHeight = 0;
 	int screenWidth = 0;
@@ -26,29 +29,23 @@ bool Application::Initialize()
 
 	m_inputHandler = new InputHandler();
 	if (!m_inputHandler)
-		return false;
+		throw std::runtime_error("Failed to allocate for input handler");
 
 	m_inputHandler->Initialise();
 
 	m_graphicsHandler = new GraphicsHandler();
 	if (!m_graphicsHandler)
-		return false;
+		throw std::runtime_error("Failed to allocate for graphics handler");
 
-	if (!m_graphicsHandler->Initialise(screenHeight, screenWidth, m_hwnd))
-		return false;
-
-	return true;
+	m_graphicsHandler->Initialise(screenHeight, screenWidth, m_hwnd);
 }
 
 void Application::Run()
 {
 	MSG msg;
-	bool done, result;
-
 	ZeroMemory(&msg, sizeof(MSG));
 
-	done = false;
-	while (!done)
+	while (!m_exit)
 	{
 		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
 		{
@@ -57,13 +54,9 @@ void Application::Run()
 		}
 
 		if (msg.message == WM_QUIT)
-			done = true;
+			m_exit = true;
 		else
-		{
-			result = Update();
-			if (!result)
-				done = true;
-		}
+			Update();
 	}
 }
 
@@ -105,22 +98,12 @@ LRESULT Application::MessageHandler(HWND hwnd, UINT umsg, WPARAM wparam, LPARAM 
 	return DefWindowProc(hwnd, umsg, wparam, lparam);
 }
 
-bool Application::Update()
+void Application::Update()
 {
-	bool result;
-
 	if (m_inputHandler->IsKeyDown(VK_ESCAPE))
-	{
-		return false;
-	}
+		m_exit = true;
 
-	result = m_graphicsHandler->Update();
-	if (!result)
-	{
-		return false;
-	}
-
-	return true;
+	m_graphicsHandler->Update();
 }
 
 void Application::InitialiseWindows(int& height, int& width)
@@ -134,7 +117,7 @@ void Application::InitialiseWindows(int& height, int& width)
 
 	// Get instance of this application and name it
 	m_hInstance = GetModuleHandle(NULL);
-	m_appName = L"Engine";
+	m_appName = L"Alex's Really Fucking Cool Engine For Cool People Who Fuck";
 
 	// Setup windows class with default settings
 	wc.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
@@ -185,7 +168,7 @@ void Application::InitialiseWindows(int& height, int& width)
 
 	// Create the window with the screen settings and get the handle to it.
 	m_hwnd = CreateWindowEx(WS_EX_APPWINDOW, m_appName, m_appName,
-		WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_POPUP,
+		WS_OVERLAPPEDWINDOW,
 		posX, posY, width, height, NULL, NULL, m_hInstance, NULL);
 
 	// Bring the window up on the screen and set it as main focus.

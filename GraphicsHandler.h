@@ -18,11 +18,11 @@ public:
 	GraphicsHandler(const GraphicsHandler& other);
 	~GraphicsHandler();
 
-	bool Initialise(int, int, HWND);
+	void Initialise(int, int, HWND);
 	void Shutdown();
-	bool Update();
+	void Update();
 
 private:
-	bool Render();
+	void Render();
 };
 

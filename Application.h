@@ -12,14 +12,14 @@ public:
 	Application(const Application& other);
 	~Application();
 
-	bool Initialize();
+	void Initialize();
 	void Run();
 	void Shutdown();
 
 	LRESULT CALLBACK MessageHandler(HWND hwnd, UINT umsg, WPARAM wparam, LPARAM lparam);
 
 private:
-	bool Update();
+	void Update();
 	void InitialiseWindows(int& height, int& width);
 	void ShutdownWindows();
 
@@ -27,6 +27,7 @@ private:
 	LPCWSTR m_appName;
 	HINSTANCE m_hInstance;
 	HWND m_hwnd;
+	bool m_exit;
 
 	GraphicsHandler* m_graphicsHandler;
 	InputHandler* m_inputHandler;

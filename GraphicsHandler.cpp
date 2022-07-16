@@ -15,20 +15,11 @@ GraphicsHandler::~GraphicsHandler()
 {
 }
 
-bool GraphicsHandler::Initialise(int height, int width, HWND hwnd)
+void GraphicsHandler::Initialise(int height, int width, HWND hwnd)
 {
 	m_d3d = new D3DHandler();
-	if (!m_d3d)
-		return false;
 
-	bool success = m_d3d->Initialise(height, width, hwnd, VSYNC_ENABLED, FULL_SCREEN);
-	if (!success)
-	{
-		MessageBox(hwnd, L"Could not initialize Direct3D", L"Error", MB_OK);
-		return false;
-	}
-
-	return true;
+	m_d3d->Initialise(height, width, hwnd, VSYNC_ENABLED, FULL_SCREEN);
 }
 
 void GraphicsHandler::Shutdown()
@@ -41,16 +32,12 @@ void GraphicsHandler::Shutdown()
 	}
 }
 
-bool GraphicsHandler::Update()
+void GraphicsHandler::Update()
 {
-	if (!Render()) return false;
-
-	return true;
+	Render();
 }
 
-bool GraphicsHandler::Render()
+void GraphicsHandler::Render()
 {
-	if (!m_d3d->Render()) return false;
-
-	return true;
+	m_d3d->Render();
 }
